@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GBP ⇄ USDC ⇄ PHP</title>
+  <style>
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:#0f1115;
+      color:#fff;
+      padding:20px;
+      margin:0;
+    }
+    .card{
+      max-width:460px;
+      margin:20px auto;
+      background:#181c23;
+      padding:20px;
+      border-radius:18px;
+    }
+    input,button{
+      width:100%;
+      box-sizing:border-box;
+      padding:14px;
+      margin:8px 0;
+      border-radius:12px;
+      border:0;
+      font-size:17px;
+    }
+    input{
+      background:#252b36;
+      color:#fff;
+    }
+    button{
+      background:#0a84ff;
+      color:#fff;
+      font-weight:600;
+    }
+    .meta{
+      margin-top:10px;
+      font-size:14px;
+      opacity:.85;
+      line-height:1.5;
+    }
+    .err{color:#ffb4b4;margin-top:10px}
+    .ok{color:#b7f7c2}
+    .label{font-size:13px;opacity:.8;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>GBP ⇄ USDC ⇄ PHP</h2>
+    <div class="label">GBP amount</div>
+    <input id="gbp" type="number" step="0.01" placeholder="Enter GBP">
+
+    <div class="label">USDC amount</div>
+    <input id="usdc" type="number" step="0.0001" placeholder="Enter USDC">
+
+    <div class="label">PHP amount</div>
+    <input id="php" type="number" step="0.01" placeholder="Enter PHP">
+
+    <button onclick="refreshRates()">Refresh live rates</button>
+
+    <div class="meta" id="rates">
+      GBP→USDC: —<br>
+      USDC→PHP: —<br>
+      Source: —
+    </div>
+
+    <div class="meta" id="updated">Last updated: —</div>
+    <div class="err" id="error"></div>
+  </div>
+
+  <script>
+    let state = { gbpToUsdc: null, usdcToPhp: null };
+    let isUpdating = false;
+
+    const gbpEl = document.getElementById('gbp');
+    const usdcEl = document.getElementById('usdc');
+    const phpEl = document.getElementById('php');
+
+    function fmt(v, d){
+      if (!isFinite(v)) return '';
+      return Number(v).toFixed(d).replace(/\.?0+$/, '');
+    }
+
+    function haveRates(){
+      return !!state.gbpToUsdc && !!state.usdcToPhp;
+    }
+
+    function updateMeta(){
+      document.getElementById('rates').innerHTML =
+        'GBP→USDC: ' + (state.gbpToUsdc ?? '—') + '<br>' +
+        'USDC→PHP: ' + (state.usdcToPhp ?? '—') + '<br>' +
+        'Source: Coinbase + Coins.ph';
+      document.getElementById('updated').textContent =
+        'Last updated: ' + new Date().toLocaleString();
+    }
+
+    function clearError(){ document.getElementById('error').innerHTML = ''; }
+    function setError(msg){ document.getElementById('error').innerHTML = msg; }
+
+    function fromGBP(){
+      const gbp = parseFloat(gbpEl.value);
+      if (!isFinite(gbp) || !haveRates()) return;
+      const usdc = gbp * state.gbpToUsdc;
+      const php = usdc * state.usdcToPhp;
+      isUpdating = true;
+      usdcEl.value = fmt(usdc, 4);
+      phpEl.value = fmt(php, 2);
+      isUpdating = false;
+    }
+
+    function fromUSDC(){
+      const usdc = parseFloat(usdcEl.value);
+      if (!isFinite(usdc) || !haveRates()) return;
+      const gbp = usdc / state.gbpToUsdc;
+      const php = usdc * state.usdcToPhp;
+      isUpdating = true;
+      gbpEl.value = fmt(gbp, 2);
+      phpEl.value = fmt(php, 2);
+      isUpdating = false;
+    }
+
+    function fromPHP(){
+      const php = parseFloat(phpEl.value);
+      if (!isFinite(php) || !haveRates()) return;
+      const usdc = php / state.usdcToPhp;
+      const gbp = usdc / state.gbpToUsdc;
+      isUpdating = true;
+      usdcEl.value = fmt(usdc, 4);
+      gbpEl.value = fmt(gbp, 2);
+      isUpdating = false;
+    }
+
+    gbpEl.addEventListener('input', () => {
+      if (isUpdating) return;
+      clearError();
+      if (!haveRates()) return setError('Load live rates first.');
+      fromGBP();
+    });
+
+    usdcEl.addEventListener('input', () => {
+      if (isUpdating) return;
+      clearError();
+      if (!haveRates()) return setError('Load live rates first.');
+      fromUSDC();
+    });
+
+    phpEl.addEventListener('input', () => {
+      if (isUpdating) return;
+      clearError();
+      if (!haveRates()) return setError('Load live rates first.');
+      fromPHP();
+    });
+
+    async function refreshRates(){
+      clearError();
+      try {
+        const res = await fetch('https://YOUR-WORKER.your-subdomain.workers.dev/');
+        if (!res.ok) throw new Error('Proxy failed');
+        const json = await res.json();
+
+        state.gbpToUsdc = Number(json.gbpToUsdc);
+        state.usdcToPhp = Number(json.usdcToPhp);
+
+        updateMeta();
+
+        if (gbpEl.value) fromGBP();
+        else if (usdcEl.value) fromUSDC();
+        else if (phpEl.value) fromPHP();
+
+        setError('<span class="ok">Live rates loaded.</span>');
+      } catch (e) {
+        setError('Could not load live rates.');
+        console.error(e);
+      }
+    }
+
+    refreshRates();
+  </script>
+</body>
+</html>
