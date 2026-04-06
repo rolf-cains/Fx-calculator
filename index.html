@@ -157,7 +157,7 @@
     async function refreshRates(){
       clearError();
       try {
-        const res = await fetch('https://YOUR-WORKER.your-subdomain.workers.dev/');
+        const res = await fetch('https://fxcalc.rolf-cains.workers.dev/');
         if (!res.ok) throw new Error('Proxy failed');
         const json = await res.json();
 
